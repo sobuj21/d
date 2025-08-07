@@ -1,12 +1,14 @@
 <!DOCTYPE html>
 <html lang="en" class="dark">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Data Extractor & Formatter</title>
-	<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext x='50' y='50' dominant-baseline='central' text-anchor='middle' font-size='85' font-family='sans-serif' font-weight='bold' fill='%2360a5fa'%3ED%3C/text%3E%3C/svg%3E">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext x='50' y='50' dominant-baseline='central' text-anchor='middle' font-size='85' font-family='sans-serif' font-weight='bold' fill='%2360a5fa'%3ED%3C/text%3E%3C/svg%3E">
     <script src="https://cdn.tailwindcss.com"></script>
-    
+    <script src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'></script>
+
     <style>
         .copy-btn.copied {
             background-color: #22c55e;
@@ -21,32 +23,32 @@
             align-items: center;
             padding: 0.5rem 0;
         }
-         .output-item:last-child {
+        .output-item:last-child {
             border-bottom: none;
         }
         .output-label {
             font-weight: 600;
             margin-right: 0.5rem;
             white-space: nowrap;
-            flex-shrink: 0; 
+            flex-shrink: 0;
         }
         .output-value {
-            flex-grow: 1; 
+            flex-grow: 1;
             text-align: left;
             word-break: break-word;
-            margin-right: 0.5rem; 
-            padding: 0.25rem 0.5rem; 
-            border-radius: 0.25rem; 
+            margin-right: 0.5rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
         }
         .output-value[contenteditable="true"] {
-            outline: 2px solid #60a5fa; 
-            background-color: #374151; 
+            outline: 2px solid #60a5fa;
+            background-color: #374151;
         }
         .output-value.needs-review, .output-value.suggested-invalid-hex {
-            color: #f87171; 
+            color: #f87171;
         }
-        .copy-btn, .edit-btn { 
-            margin-left: 0.5rem; 
+        .copy-btn, .edit-btn {
+            margin-left: 0.5rem;
             padding: 0.3rem 0.6rem;
             font-size: 0.8rem;
             transition: background-color 0.2s ease, color 0.2s ease;
@@ -64,12 +66,12 @@
         #filenameOutput {
             flex-grow: 1;
             margin-right: 1rem;
-            padding: 0.25rem 0.5rem; 
-            border-radius: 0.25rem; 
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
         }
         #filenameOutput[contenteditable="true"] {
-            outline: 2px solid #60a5fa; 
-            background-color: #374151; 
+            outline: 2px solid #60a5fa;
+            background-color: #374151;
         }
         #pageTitle {
             cursor: pointer;
@@ -117,17 +119,18 @@
         #previewImageElement {
             max-width: 100%;
             height: auto;
-            max-height: 70vh; 
+            max-height: 70vh;
         }
-        .edit-btn-icon { 
-            width: 1rem; 
-            height: 1rem; 
+        .edit-btn-icon {
+            width: 1rem;
+            height: 1rem;
         }
     </style>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
 </head>
+
 <body class="bg-slate-900 min-h-screen p-4 md:p-8 flex items-center justify-center transition-colors duration-300">
     <div class="bg-slate-800 p-6 md:p-8 rounded-lg shadow-lg w-full max-w-2xl relative transition-colors duration-300">
 
@@ -188,6 +191,7 @@
                 </h2>
                 <div id="extractedInfo" class="space-y-1 bg-slate-700/50 p-4 rounded-md shadow-inner">
                 </div>
+                 <div id="apiKeyWarning" class="text-center text-xs text-red-400 mt-2"></div>
             </div>
 
             <div>
@@ -209,7 +213,7 @@
 
         <div id="imagePreviewSection" class="mt-6 hidden">
             <h2 class="text-lg font-semibold mb-3 text-slate-200 border-b border-slate-700 pb-2">
-                Preview 
+                Preview&nbsp;
             </h2>
             <div class="bg-slate-700/50 p-4 rounded-md shadow-inner flex justify-center items-center">
                 <img id="previewImageElement" src="#" alt="Image Preview" class="rounded-md">
@@ -217,6 +221,8 @@
         </div>
 
         <div id="messageBox" class="mt-4 text-center text-sm font-medium hidden"></div>
+        
+        <div id="ocrSourceDisplay" class="text-center text-xs text-slate-500 mt-4"></div>
 
     </div>
 
@@ -241,14 +247,30 @@
         const ocrWarningHint = document.getElementById('ocrWarningHint');
         const imagePreviewSection = document.getElementById('imagePreviewSection');
         const previewImageElement = document.getElementById('previewImageElement');
+        const ocrSourceDisplay = document.getElementById('ocrSourceDisplay');
+        const apiKeyWarningDiv = document.getElementById('apiKeyWarning');
 
         let selectedFile = null;
         let hasProcessedOnce = false;
-        let currentProcessedData = {}; 
-        let currentFilenameSizePart = ""; 
-        const apiKey = "AIzaSyB2w2vQ-unTmsxziZoOm8bbKY66n7BbJjM";
-
-
+        let currentProcessedData = {};
+        let currentFilenameSizePart = "";
+        
+        const apiKeys = [
+            "AIzaSyBIv6f8J79DpVxNVXYXuKwWz0Br7SL9pos",
+            "AIzaSyCbzdBqP2oDqiqGfqfUnmQiCveO7yhH15Q",
+            "AIzaSyBYGb4prT15I2vMeI9miV-9aUd5ZxM8c8o",
+            "AIzaSyCCm0SzD1D2GQFFyMXXokyYcBXE-7kYNpc",
+            "AIzaSyB8FTScDPiDHWrTYUJ2GaFV4mCtUeJnh24",
+            "AIzaSyBMMrlAZrfqx53J39T7J9C8X5aebggAcaE",
+            "AIzaSyB2w2vQ-unTmsxziZoOm8bbKY66n7BbJjM",
+            "AIzaSyActZARdw5HqYmMEZXLdZ1AS1r1RtlbWIk",
+            "AIzaSyCY_npBUie2u-g4jJZAdNiiWqpIf26UwfQ",
+            "AIzaSyA_msAroJeyWrEL9MR0Zm93BXTdKPUYa-U",
+            "AIzaSyCtVl9wyefRnkjxBTiRSIeGIMEzjTbyiFY"
+        ];
+        
+        const usedOcrEngines = new Set();
+        
         const commonColorHexMap = {
             'indian red': '#CD5C5C', 'light coral': '#F08080', 'salmon': '#FA8072', 'dark salmon': '#E9967A', 
             'light salmon': '#FFA07A', 'crimson': '#DC143C', 'red': '#FF0000', 'matte red': '#B33F40', 
@@ -291,7 +313,7 @@
             'rosy brown': '#BC8F8F', 'sandy brown': '#F4A460', 'goldenrod': '#DAA520', 'dark goldenrod': '#B8860B', 
             'peru': '#CD853F', 'chocolate': '#D2691E', 'saddle brown': '#8B4513', 'sienna': '#A0522D', 
             'brown': '#A52A2A', 'matte brown': '#5D4037', 'metallic copper': '#D1793B', 'metallic brown': '#3E2723', 
-            'maroon': '#800000', 'zinnwaldite brown': '#2C1608', 'white': '#E6E9E9', 'matte white': '#E6E9E9', 
+            'maroon': '#800000', 'zinnwaldite brown': '#2C1608', 'white': '#F0F0F0', 'matte white': '#F0F0F0', 
             'metallic white': '#ECEFF1', 'snow': '#FFFAFA', 'honey dew': '#F0FFF0', 'mint cream': '#F5FFFA', 'mint': '#3EB489',
             'azure': '#F0FFFF', 'alice blue': '#F0F8FF', 'ghost white': '#F8F8FF', 'white smoke': '#F5F5F5', 
             'sea shell': '#FFF5EE', 'beige': '#F5F5DC', 'old lace': '#FDF5E6', 'floral white': '#FFFAF0', 
@@ -428,11 +450,11 @@
             while((match = hexRegex.exec(text)) !== null) {
                 let currentMatch = match[0];
                 currentMatch = '#' + currentMatch.substring(1)
-                                        .replace(/¢/g, 'c')
-                                        .replace(/\$/g, 's')
-                                        .replace(/g/gi, '6') 
-                                        .replace(/o/gi, '0') 
-                                        .replace(/i|l/gi, '1'); 
+                                                .replace(/¢/g, 'c')
+                                                .replace(/\$/g, 's')
+                                                .replace(/g/gi, '6') 
+                                                .replace(/o/gi, '0') 
+                                                .replace(/i|l/gi, '1'); 
                 if (isValidHex(currentMatch)) { 
                     if (!potentialHex || currentMatch.length > potentialHex.length) {
                         potentialHex = currentMatch;
@@ -493,7 +515,6 @@
             if (cleaned) {
                 cleaned = cleaned.split(' ').map(w => {
                     if (w.toUpperCase() === 'SC' || w.toUpperCase() === 'ITC') return w.toUpperCase(); 
-                    // FIX: Changed to preserve casing after the first letter.
                     return w.charAt(0).toUpperCase() + w.slice(1);
                 }).join(' ');
             }
@@ -708,10 +729,10 @@
             editButton.className = 'edit-btn p-1 bg-slate-600 text-slate-200 hover:bg-slate-500';
             editButton.title = `Edit ${label}`;
             editButton.innerHTML = `
-                <svg class="edit-btn-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                <svg class="edit-btn-icon" id="editIcon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                     <path d="M2.695 14.763l-1.262 3.154a.5.5 0 00.65.65l3.155-1.262a4 4 0 001.343-.885L17.5 5.5a2.121 2.121 0 00-3-3L3.58 13.42a4 4 0 00-.885 1.343z" />
                 </svg>
-                <svg class="edit-btn-icon hidden" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                <svg class="edit-btn-icon hidden" id="saveIcon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                     <path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd" />
                 </svg>`;
             editButton.onclick = () => toggleValueEdit(valueSpan, editButton, dataKey, label);
@@ -741,7 +762,7 @@
             let ocrTextColorHex = currentProcessedData.textColorHex; 
 
             if (displayTextColorDescriptiveClean?.toLowerCase() === 'white') {
-                textColorHexForDisplay = '#E6E9E9';
+                textColorHexForDisplay = '#F0F0F0';
                 isTextColorHexSuggestedOrInvalidForDisplay = true;
             } else if (displayTextColorDescriptiveClean?.toLowerCase() === 'black') {
                 textColorHexForDisplay = null; 
@@ -791,7 +812,7 @@
                     outlineColorHexForDisplay = null; 
                     isOutlineColorHexSuggestedOrInvalidForDisplay = false;
                 } else if (displayOutlineColorDescriptiveClean?.toLowerCase() === 'white') {
-                    outlineColorHexForDisplay = '#E6E9E9';
+                    outlineColorHexForDisplay = '#F0F0F0';
                     isOutlineColorHexSuggestedOrInvalidForDisplay = true;
                 } else if (displayOutlineColorDescriptiveClean?.toLowerCase() === 'matte black') {
                     outlineColorHexForDisplay = '#28282B';
@@ -1003,9 +1024,9 @@
             if (extractedInfoDiv.hasChildNodes() || filenameOutputDiv.textContent.trim() !== "") {
                 outputSection.classList.remove('hidden');
                  if (ocrWarningStar.classList.contains('hidden') && !(document.querySelector('.output-value.needs-review')) && !(document.querySelector('.output-value.suggested-invalid-hex')) ) {
-                     showMessage('Data processed successfully!');
+                      showMessage('Data processed successfully!');
                  } else if (selectedFile) {
-                     showMessage(`Data processed. Some fields might be missing or need review (see star/red text).`, false, 4500);
+                      showMessage(`Data processed. Some fields might be missing or need review (see star/red text).`, false, 4500);
                  }
 
                 outputSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1075,6 +1096,11 @@
             ocrWarningHint.textContent = '';
             imagePreviewSection.classList.add('hidden');
             previewImageElement.src = "#";
+            
+            usedOcrEngines.clear();
+            ocrSourceDisplay.textContent = '';
+            apiKeyWarningDiv.textContent = '';
+            
             showMessage('Form reset.');
             hasProcessedOnce = false;
             currentProcessedData = {};
@@ -1092,8 +1118,13 @@
                     ocrWarningHint.textContent = '';
                     imagePreviewSection.classList.add('hidden');
                     previewImageElement.src = "#";
-                } catch (err) { console.error('Clipboard read failed: ', err); showMessage('Failed to paste. Check permissions or HTTPS.', true, 4000); }
-            } else { showMessage('Clipboard paste not available/supported (requires HTTPS).', true, 4000); }
+                } catch (err) { 
+                    console.error('Clipboard read failed: ', err); 
+                    showMessage('Auto-paste failed. Please use Ctrl+V or Cmd+V to paste.', true, 4000);
+                }
+            } else { 
+                showMessage('Clipboard paste not available/supported (requires HTTPS).', true, 4000); 
+            }
         });
 
         imageInput.addEventListener('change', (event) => handleFileSelect(event.target.files[0]));
@@ -1157,68 +1188,214 @@
              dropZone.classList.add('bg-slate-700', 'border-slate-600');
         }, false);
 
+        function updateOcrSourceDisplay() {
+            if (usedOcrEngines.size === 0) {
+                ocrSourceDisplay.textContent = '';
+                return;
+            }
+            const sources = Array.from(usedOcrEngines).join(' & ');
+            ocrSourceDisplay.textContent = `By ${sources}`;
+        }
+
+        async function runTesseractOcr(imageFile) {
+            showMessage('Using Tesseract OCR...', false, 20000);
+            const worker = await Tesseract.createWorker('eng', 1, {
+                logger: m => {
+                    if (m.status === 'recognizing text') {
+                        const progress = (m.progress * 100).toFixed(0);
+                        showMessage(`Tesseract: Recognizing text... ${progress}%`, false, 20000);
+                    }
+                },
+            });
+            const { data: { text } } = await worker.recognize(imageFile);
+            await worker.terminate();
+            console.log("Tesseract OCR Result:", text);
+            return text;
+        }
+        
+        async function callGeminiApi(base64ImageData, mimeType, apiKey) {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 9000); 
+
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+            const payload = {
+                contents: [{
+                    parts: [
+                        { text: "Extract all text from this image exactly as it appears, including labels, values, and hex codes. Maintain original formatting and line breaks precisely." },
+                        { inline_data: { mime_type: mimeType, data: base64ImageData } }
+                    ]
+                }]
+            };
+            
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                    signal: controller.signal
+                });
+
+                clearTimeout(timeoutId);
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    const error = new Error(errorData?.error?.message || `API Error: ${response.statusText}`);
+                    error.status = response.status;
+                    throw error;
+                }
+
+                const result = await response.json();
+                if (result.candidates && result.candidates.length > 0 &&
+                    result.candidates[0].content && result.candidates[0].content.parts &&
+                    result.candidates[0].content.parts.length > 0) {
+                    const extractedText = result.candidates[0].content.parts[0].text;
+                    console.log(`Gemini OCR Result from key ending in ...${apiKey.slice(-4)}`);
+                    return extractedText;
+                } else {
+                    console.error("Gemini API Error: No valid content in response", result);
+                    throw new Error("Could not extract text from the image using the API.");
+                }
+            } catch (error) {
+                clearTimeout(timeoutId);
+                if (error.name === 'AbortError') {
+                    const timeoutError = new Error('Request timed out');
+                    timeoutError.status = 'TIMEOUT';
+                    throw timeoutError;
+                }
+                throw error;
+            }
+        }
+
+        function getApiKeyStatus() {
+            try {
+                return JSON.parse(localStorage.getItem('apiKeyStatus')) || {};
+            } catch (e) {
+                return {};
+            }
+        }
+
+        function setApiKeyStatus(status) {
+            localStorage.setItem('apiKeyStatus', JSON.stringify(status));
+        }
+
+        function checkAndDisplayPermanentFailures() {
+            const apiKeyStatus = getApiKeyStatus();
+            const permanentlyFailedKeys = [];
+            for (const keyIndex in apiKeyStatus) {
+                const status = apiKeyStatus[keyIndex];
+                if (status.state === 'PERMANENT_FAILURE') {
+                    permanentlyFailedKeys.push(apiKeys[keyIndex]);
+                }
+            }
+            if (permanentlyFailedKeys.length > 0) {
+                apiKeyWarningDiv.innerHTML = `Warning: The following API key(s) appear to be permanently failing and should be removed: <br> ${permanentlyFailedKeys.join('<br>')}`;
+            } else {
+                apiKeyWarningDiv.innerHTML = '';
+            }
+        }
+
+        async function handleSubmitImage(imageFile) {
+            showProcessingState(true);
+            showMessage('Processing image... this may take a moment.', false, 20000);
+            checkAndDisplayPermanentFailures();
+
+            imageToBase64(imageFile, async (base64ImageData) => {
+                if (!base64ImageData) {
+                    showProcessingState(false);
+                    return;
+                }
+
+                let success = false;
+                let lastError = null;
+                const apiKeyStatus = getApiKeyStatus();
+                let currentApiKeyIndex = parseInt(localStorage.getItem('currentApiKeyIndex') || '0');
+
+                for (let i = 0; i < apiKeys.length; i++) {
+                    const keyIndex = (currentApiKeyIndex + i) % apiKeys.length;
+                    const currentKey = apiKeys[keyIndex];
+                    const status = apiKeyStatus[keyIndex] || {};
+
+                    if (status.cooldownUntil && Date.now() < status.cooldownUntil) {
+                        console.warn(`Key index ${keyIndex} is on cooldown. Skipping.`);
+                        continue;
+                    }
+
+                    try {
+                        const resultText = await callGeminiApi(base64ImageData, imageFile.type, currentKey);
+                        processInputText(resultText);
+                        usedOcrEngines.add('Gemini');
+                        updateOcrSourceDisplay();
+                        localStorage.setItem('currentApiKeyIndex', keyIndex);
+                        if (status.failureCount) {
+                            delete status.failureCount;
+                            delete status.state;
+                            setApiKeyStatus(apiKeyStatus);
+                        }
+                        success = true;
+                        break;
+                    } catch (error) {
+                        console.warn(`API call with key index ${keyIndex} failed:`, error.message);
+                        lastError = error;
+                        
+                        if (error.status === 503 || error.status === 'TIMEOUT') {
+                            console.log(`Gemini is overloaded or timed out. Breaking to try Tesseract.`);
+                            break; 
+                        }
+                        if (error.status === 429) {
+                            status.failureCount = (status.failureCount || 0) + 1;
+                            if (status.state === 'PERMANENT_FAILURE') {
+                                console.log(`Key index ${keyIndex} is still failing. Keeping as permanent failure.`);
+                            } else if (status.failureCount >= 5) {
+                                console.log(`Key index ${keyIndex} has failed 5 times. Disabling for 30 days.`);
+                                status.cooldownUntil = Date.now() + 30 * 24 * 60 * 60 * 1000;
+                                status.state = 'PERMANENT_FAILURE';
+                            } else {
+                                console.log(`Key index ${keyIndex} reached its quota. Disabling for 24 hours.`);
+                                status.cooldownUntil = Date.now() + 24 * 60 * 60 * 1000;
+                            }
+                            apiKeyStatus[keyIndex] = status;
+                            setApiKeyStatus(apiKeyStatus);
+                            continue;
+                        }
+                        break;
+                    }
+                }
+
+                if (!success) {
+                    console.error("All Gemini API attempts failed or were bypassed.", lastError);
+                    showMessage('Gemini is busy or unavailable. Falling back to Tesseract OCR...', false, 5000);
+                    try {
+                        const tesseractText = await runTesseractOcr(imageFile);
+                        processInputText(tesseractText);
+                        usedOcrEngines.add('Tesseract');
+                        updateOcrSourceDisplay();
+                    } catch (tesseractError) {
+                        console.error("Tesseract OCR also failed.", tesseractError);
+                        showMessage(`OCR Failed: ${tesseractError.message || 'Tesseract error'}`, true, 5000);
+                    }
+                }
+
+                showProcessingState(false);
+            });
+        }
+
+
         submitButton.addEventListener('click', async () => {
             if (submitButton.disabled) return;
-            const inputText = dataInput.value; const imageFile = selectedFile;
+            const inputText = dataInput.value;
+            const imageFile = selectedFile;
+
             if (inputText.trim()) {
-                ocrWarningStar.classList.add('hidden'); 
+                ocrWarningStar.classList.add('hidden');
                 ocrWarningHint.textContent = '';
                 imagePreviewSection.classList.add('hidden');
                 previewImageElement.src = "#";
                 processInputText(inputText);
             } else if (imageFile) {
-                showMessage('Processing image... this may take a moment.', false, 20000);
-                showProcessingState(true);
-                imageToBase64(imageFile, async (base64ImageData) => {
-                    if (!base64ImageData) {
-                        showProcessingState(false);
-                        return; 
-                    }
-                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-                    const payload = {
-                        contents: [{
-                            parts: [
-                                { text: "Extract all text from this image exactly as it appears, including labels, values, and hex codes. Maintain original formatting and line breaks precisely." },
-                                { inline_data: { mime_type: imageFile.type, data: base64ImageData } }
-                            ]
-                        }]
-                    };
-                    try {
-                        const response = await fetch(apiUrl, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(payload)
-                        });
-                        if (!response.ok) {
-                            const errorData = await response.json();
-                            throw new Error(`API Error: ${response.status} ${response.statusText} - ${errorData.error.message}`);
-                        }
-                        const result = await response.json();
-                        if (result.candidates && result.candidates.length > 0 &&
-                            result.candidates[0].content && result.candidates[0].content.parts &&
-                            result.candidates[0].content.parts.length > 0) {
-                            const extractedText = result.candidates[0].content.parts[0].text;
-                            console.log("Gemini OCR Result:", extractedText); 
-                            processInputText(extractedText);
-                        } else {
-                            console.error("Gemini API Error: No valid content in response", result);
-                            throw new Error("Could not extract text from the image using the API.");
-                        }
-                    } catch (error) {
-                        console.error("Gemini API Call Error:", error); 
-                        showMessage(`Error during image processing: ${error.message || 'Unknown API error'}`, true, 5000); 
-                        outputSection.classList.add('hidden'); 
-                        ocrWarningStar.classList.remove('hidden'); 
-                        ocrWarningHint.textContent = 'API Error';
-                        imagePreviewSection.classList.add('hidden'); 
-                        previewImageElement.src = "#";
-                    } finally {
-                        showProcessingState(false);
-                    }
-                });
-            } else { 
-                showMessage('Please paste text or upload an image first.', true); 
-                outputSection.classList.add('hidden'); 
+                handleSubmitImage(imageFile);
+            } else {
+                showMessage('Please paste text or upload an image first.', true);
+                outputSection.classList.add('hidden');
                 ocrWarningStar.classList.add('hidden');
                 ocrWarningHint.textContent = '';
                 imagePreviewSection.classList.add('hidden');
@@ -1307,6 +1484,8 @@
                  }
             }
         });
+
+        document.addEventListener('DOMContentLoaded', checkAndDisplayPermanentFailures);
     </script>
 </body>
 </html>
