@@ -992,6 +992,10 @@
                 }
             }
 
+            if (rawValues.sku) {
+                rawValues.sku = rawValues.sku.replace(/_|\s/g, '-'); 
+            }
+
             if (rawValues.sku === "Wind-5C-25") {
                 rawValues.sku = "Wind-SC-25";
             }
