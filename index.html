@@ -269,7 +269,7 @@
             "AIzaSyA_msAroJeyWrEL9MR0Zm93BXTdKPUYa-U",
             "AIzaSyCtVl9wyefRnkjxBTiRSIeGIMEzjTbyiFY"
         ];
-        
+        let currentApiKeyIndex = parseInt(localStorage.getItem('currentApiKeyIndex') || '0');
         const usedOcrEngines = new Set();
         
         const commonColorHexMap = {
@@ -993,7 +993,13 @@
             }
 
             if (rawValues.sku) {
-                rawValues.sku = rawValues.sku.replace(/_|\s/g, '-'); 
+                let sku = rawValues.sku;
+                sku = sku.replace(/_/g, '-');
+                while (/([A-Z])\s([A-Z])/.test(sku)) {
+                    sku = sku.replace(/([A-Z])\s([A-Z])/g, '$1$2');
+                }
+                sku = sku.replace(/\s/g, '-');
+                rawValues.sku = sku;
             }
 
             if (rawValues.sku === "Wind-5C-25") {
